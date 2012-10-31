@@ -3,7 +3,8 @@
 -include("ttf_offset_table.hrl").
 -include("ttf_table.hrl").
 -include("ttf_table_glyf.hrl").
--include("ttf_table_simple_glyf_description.hrl").
+-include("ttf_table_simple_glyph_description.hrl").
+-include("ttf_table_simple_glyph_description_flag.hrl").
 
 -define(FILENAME, "font.d/subset.ttf").
 
@@ -43,11 +44,17 @@ get_offset_table(Bin) ->
     case NumTables * 16 - SearchRange of
         RangeShift -> ok
     end,
-    {Bin2, #ttf_offset_table{sfnt_version = SfntVersion,
-                             num_tables = NumTables,
-                             search_range = SearchRange,
-                             entry_selector = EntrySelector,
-                             range_shift = RangeShift}}.
+    io:format("get_offset_table~n"),
+    io:format("\tsfnt_version:\t~p~n", [SfntVersion]),
+    io:format("\tnum_tables:\t~p~n", [NumTables]),
+    io:format("\tsearch_range:\t~p~n", [SearchRange]),
+    io:format("\tentry_selector:\t~p~n", [EntrySelector]),
+    io:format("\trange_shift:\t~p~n", [RangeShift]),
+    {#ttf_offset_table{sfnt_version = SfntVersion,
+                       num_tables = NumTables,
+                       search_range = SearchRange,
+                       entry_selector = EntrySelector,
+                       range_shift = RangeShift}, Bin2}.
 
 get_tables(Font, OffsetTable) ->
     get_tables_acc(Font, OffsetTable#ttf_offset_table.num_tables, []).
@@ -68,6 +75,11 @@ get_tables_acc(Font, Num, List) when Num > 0 ->
                        check_sum = CheckSum,
                        offset = Offset,
                        length = Length},
+    %% io:format("get_tables_acc~n"),
+    %% io:format("\ttag:\t~p~n", [Tag]),
+    %% io:format("\tcheck_sum:\t~p~n", [CheckSum]),
+    %% io:format("\toffset:\t~p~n", [Offset]),
+    %% io:format("\tlength:\t~p~n", [Length]),
     get_tables_acc(Font2, Num - 1, [Table | List]).
 
 %%% Required Tables
@@ -87,19 +99,107 @@ parse_table_loca(_Font, _Table) ->
 %%%% xMax: SHORT
 %%%% yMax: SHORT
 
-%% parse_table_simple_glyf_description(Font, TableGlyf) when TableGlyf#ttf_table_glyf.number_of_contours > 0 ->
-%%     <<EndPtsOfContours:16/unsigned-integer>> = binary_part(Font, 0, 2),
-%%     case EndPtsOfContours of
-%%     <<EndPtsOfContours:16/unsigned-integer, _/binary>> = 
-%%         <<EndPtsOfContours:16/unsigned-integer,
-%%       InstructionLength:16/unsigned-integer,
-%%       Instructions:8/unsigned-integer,
-%%       Flags:8/unsigned-integer,
-      
-%%     Font,
-%%     ok.
+%%%% Simeple Glyph Description
+%%%%% endPtsOfContours[n]: USHORT
 
-parse_table_glyf(Font, _Table) ->
+get_ushorts_from_binary(Bin, Count) ->
+    get_ushorts_from_binary_acc(Bin, Count, []).
+
+get_ushorts_from_binary_acc(Bin, 0, List) ->
+    {List, Bin};
+get_ushorts_from_binary_acc(Bin, Count, List) when Count > 0 ->
+    <<Int:16/unsigned-integer, Bin2/binary>> = Bin,
+    get_ushorts_from_binary_acc(Bin2, Count - 1, [Int | List]).
+
+get_bytes_from_binary(Bin, Count) ->
+    get_bytes_from_binary_acc(Bin, Count, []).
+
+get_bytes_from_binary_acc(Bin, 0, List) ->
+    {List, Bin};
+get_bytes_from_binary_acc(Bin, Count, List) when Count > 0 ->
+    <<Int:8/unsigned-integer, Bin2/binary>> = Bin,
+    get_bytes_from_binary_acc(Bin2, Count - 1, [Int | List]).
+
+%% parse_table_simple_glyph_description_acc(Font, [], XCoodinates, YCoodinates) ->
+%%     {Font, XCoodinates, YCoodinates};
+%% parse_table_simple_glyph_description_acc(Font, [Flag | Flags], XCoodinates, YCoodinates) ->
+
+read_repeat_flags(Font, Flag) when Flag#ttf_table_simple_glyph_description_flag.repeat > 0 ->
+    <<RepeatCount, Font2/binary>> = Font,
+    Flags = lists:duplicate(RepeatCount, Flag),
+    {[Flags | Flag], Font2};
+read_repeat_flags(Font, Flag) ->
+    {[Flag], Font}.
+
+read_flags(Font, Count) ->
+    read_flags_acc(Font, Count, []).
+
+read_flags_acc(Font, 0, List) ->
+    {List, Font};
+read_flags_acc(Font, Count, List) when Count > 0 ->
+    io:format("read_flags_acc~n"),
+    <<Flag:8/bitstring, Font2/binary>> = Font,
+    io:format("\tflag:\t~p~n", [Flag]),
+    OnCurve      = binary:decode_unsigned(Flag) band 2#00000001 > 0,
+    XShortVector = binary:decode_unsigned(Flag) band 2#00000010 > 0,
+    YShortVector = binary:decode_unsigned(Flag) band 2#00000100 > 0,
+    Repeat       = binary:decode_unsigned(Flag) band 2#00001000 > 0,
+    ThisXIsSame  = binary:decode_unsigned(Flag) band 2#00010000 > 0,
+    ThisYIsSame  = binary:decode_unsigned(Flag) band 2#00100000 > 0,
+    0            = binary:decode_unsigned(Flag) band 2#01000000,
+    0            = binary:decode_unsigned(Flag) band 2#10000000,
+    Flag2 = #ttf_table_simple_glyph_description_flag{on_curve = OnCurve,
+                                                     x_short_vector = XShortVector,
+                                                     y_short_vector = YShortVector,
+                                                     repeat = Repeat,
+                                                     this_x_is_same = ThisXIsSame,
+                                                     this_y_is_same = ThisYIsSame},
+    io:format("\ton_curve:\t~p~n", [OnCurve]),
+    io:format("\tx_short_vector:\t~p~n", [XShortVector]),
+    io:format("\ty_short_vector:\t~p~n", [YShortVector]),
+    io:format("\trepeat:\t~p~n", [Repeat]),
+    io:format("\tthis_x_is_same:\t~p~n", [ThisXIsSame]),
+    io:format("\tthis_y_is_same:\t~p~n", [ThisYIsSame]),
+    {Flags, Font2} = read_repeat_flags(Font, Flag2),
+    read_flags_acc(Font2, Count - 1, [Flags | List]).
+
+parse_table_simple_glyph_description(Font, TableGlyf) ->
+    io:format("fun parse_table_simple_glyph_description~n"),
+    {EndPtsOfContours, Font2} = get_ushorts_from_binary(Font, TableGlyf#ttf_table_glyf.number_of_contours),
+    io:format("\tEndPtsOfContours:\t~p~n", [EndPtsOfContours]),
+    <<InstructionLength:16/unsigned-integer, Font3/binary>> = Font2,
+    io:format("\tInstructionLength:\t~p~n", [InstructionLength]),
+    {Instructions, Font4} = get_bytes_from_binary(Font3, InstructionLength),
+    io:format("\tInstructions:\t~p~n", [Instructions]),
+    {List, Font5} = get_bytes_from_binary(Font4, InstructionLength),
+    %%% TODO: enable ThisXIsSame, and ThisYIsSame, these does not work now.
+    {Flags, Font6} = read_flags(Font5, TableGlyf#ttf_table_glyf.number_of_contours),
+
+    Flags = lists:map(fun (X) -> <<OnCurve:1,
+                                   XShortVector:1,
+                                   YShortVector:1,
+                                   Repeat:1,
+                                   ThisXIsSame:1,
+                                   ThisYIsSame:1,
+                                   0:1,
+                                   0:1>> = X,
+                                 #ttf_table_simple_glyph_description_flag{on_curve = OnCurve,
+                                                                          x_short_vector = XShortVector,
+                                                                          y_short_vector = YShortVector,
+                                                                          repeat = Repeat,
+                                                                          this_x_is_same = ThisXIsSame,
+                                                                          this_y_is_same = ThisYIsSame}
+                      end, List),
+    io:format("\tFlags:\t~p~n", [Flags]),
+%    {Font6, XCoodinates, YCoodinates} = parse_table_simple_glyph_description_acc(Font5, Flags, [], []),
+    ok.
+
+parse_table_composite_glyph_description(_Font2, _TableGlyf) ->
+    true = false.
+
+parse_table_glyf_acc(<<_:0/binary>>, Glyphs) ->
+    Glyphs;
+parse_table_glyf_acc(Font, Glyphs) ->
     io:format("\tparse_table_glyf~n"),
     <<NumberOfContours:16/signed-integer,
       XMin:16/signed-integer,
@@ -111,15 +211,20 @@ parse_table_glyf(Font, _Table) ->
                                 x_min = XMin,
                                 y_min = YMin,
                                 x_max = XMax,
-                                y_max = XMax},
+                                y_max = YMax},
     io:format("\t\tnumber of contour:\t~p~n", [TableGlyf#ttf_table_glyf.number_of_contours]),
-    io:format("\t\tx min:\t~p~n", [XMin]),
-    io:format("\t\ty min:\t~p~n", [YMin]),
-    io:format("\t\tx max:\t~p~n", [XMax]),
-    io:format("\t\ty max:\t~p~n", [YMax]),
-%%     parse_table_simple_glyf_description(Font2, TableGlyf),
-    ok.
+    io:format("\t\tx min:\t~p~n", [TableGlyf#ttf_table_glyf.x_min]),
+    io:format("\t\ty min:\t~p~n", [TableGlyf#ttf_table_glyf.y_min]),
+    io:format("\t\tx max:\t~p~n", [TableGlyf#ttf_table_glyf.x_max]),
+    io:format("\t\ty max:\t~p~n", [TableGlyf#ttf_table_glyf.y_max]),
+    case TableGlyf#ttf_table_glyf.number_of_contours >= 0 of
+        true  -> {Font3, Glyph} = parse_table_simple_glyph_description(Font2, TableGlyf);
+        false -> {Font3, Glyph} = parse_table_composite_glyph_description(Font2, TableGlyf)
+    end,
+    parse_table_glyf_acc(Font3, [Glyph | Glyphs]).
 
+parse_table_glyf(Font, _Table) ->
+    parse_table_glyf_acc(Font, []).
 
 %%% Tables Related to PostScript Outlines
 
@@ -183,15 +288,16 @@ parse_table_fftm(_Font, _Table) ->
     ok.
 
 get_method_name(Tag) ->
-%    io:format("pre conv: ~p~n", [Tag]),
+%    io:format("pre conv:\t~p~n", [Tag]),
     String = "parse_table_" ++ re:replace(string:to_lower(Tag), " |/", "_", [{return, list}]),
-%    io:format("aft conv: ~p~n", [String]),
+%    io:format("aft conv:\t~p~n", [String]),
     list_to_atom(String).
 
 parse_table(Font, Table) ->
-    io:format("tag: ~p~n", [Table#ttf_table.tag]),
-    io:format("\toffset: ~p~n", [Table#ttf_table.offset]),
-    io:format("\tlength: ~p~n", [Table#ttf_table.length]),
+    io:format("parse_table~n"),
+    io:format("\ttag:\t~p~n", [Table#ttf_table.tag]),
+    io:format("\toffset:\t~p~n", [Table#ttf_table.offset]),
+    io:format("\tlength:\t~p~n", [Table#ttf_table.length]),
     Bin = binary_part(Font, Table#ttf_table.offset, Table#ttf_table.length),
     apply(?MODULE, get_method_name(Table#ttf_table.tag), [Bin, Table]).
 
@@ -202,6 +308,7 @@ parse_tables(Font, [Table | Tables]) ->
     parse_tables(Font, Tables).
 
 parse_font(Font) ->
-    {Font2, OffsetTable} = get_offset_table(Font),
+    {OffsetTable, Font2} = get_offset_table(Font),
     Tables = get_tables(Font2, OffsetTable),
+    io:format("tables: ~p~n", [Tables]),
     parse_tables(Font, Tables).
