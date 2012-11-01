@@ -120,22 +120,24 @@ get_bytes_from_binary_acc(Bin, Count, List) when Count > 0 ->
     <<Int:8/unsigned-integer, Bin2/binary>> = Bin,
     get_bytes_from_binary_acc(Bin2, Count - 1, [Int | List]).
 
-%% parse_table_simple_glyph_description_acc(Font, [], XCoodinates, YCoodinates) ->
-%%     {Font, XCoodinates, YCoodinates};
-%% parse_table_simple_glyph_description_acc(Font, [Flag | Flags], XCoodinates, YCoodinates) ->
+%% parse_table_simple_glyph_description_acc(Font, [], XCoordinates, YCoordinates) ->
+%%     {Font, XCoordinates, YCoordinates};
+%% parse_table_simple_glyph_description_acc(Font, [Flag | Flags], XCoordinates, YCoordinates) ->
 
-read_repeat_flags(Font, Flag) when Flag#ttf_table_simple_glyph_description_flag.repeat > 0 ->
+read_repeat_flags(Font, Flag) when Flag#ttf_table_simple_glyph_description_flag.repeat =:= true ->
+    io:format("read_repeat_flags:\ttrue~n"),
     <<RepeatCount, Font2/binary>> = Font,
     Flags = lists:duplicate(RepeatCount, Flag),
     {[Flags | Flag], Font2};
 read_repeat_flags(Font, Flag) ->
-    {[Flag], Font}.
+    io:format("read_repeat_flags:\tfalse~n"),
+    {Flag, Font}.
 
 read_flags(Font, Count) ->
     read_flags_acc(Font, Count, []).
 
 read_flags_acc(Font, 0, List) ->
-    {List, Font};
+    {lists:reverse(List), Font};
 read_flags_acc(Font, Count, List) when Count > 0 ->
     io:format("read_flags_acc~n"),
     <<Flag:8/bitstring, Font2/binary>> = Font,
@@ -160,8 +162,61 @@ read_flags_acc(Font, Count, List) when Count > 0 ->
     io:format("\trepeat:\t~p~n", [Repeat]),
     io:format("\tthis_x_is_same:\t~p~n", [ThisXIsSame]),
     io:format("\tthis_y_is_same:\t~p~n", [ThisYIsSame]),
-    {Flags, Font2} = read_repeat_flags(Font, Flag2),
-    read_flags_acc(Font2, Count - 1, [Flags | List]).
+    {Flags, Font3} = read_repeat_flags(Font2, Flag2),
+    read_flags_acc(Font3, Count - 1, [Flags | List]).
+
+get_x_coordinates(Font, Flags) ->
+    io:format("get_x_coordinates~n"),
+    get_x_coordinates_acc(Font, Flags, []).
+
+get_x_coordinates_acc(Font, [], List) ->
+    io:format("get_x_coordinates_acc:\tlast~n"),
+    {lists:reverse(List), Font};
+get_x_coordinates_acc(Font, [Flag | Flags], List) when Flag#ttf_table_simple_glyph_description_flag.x_short_vector,
+                                                       Flag#ttf_table_simple_glyph_description_flag.this_x_is_same ->
+    io:format("get_x_coordinates_acc:\ttrue, true~n"),
+    <<Vector:8/unsigned-integer, Font2/binary>> = Font,
+    get_x_coordinates_acc(Font2, Flags, [Vector | List]);
+get_x_coordinates_acc(Font, [Flag | Flags], List) when Flag#ttf_table_simple_glyph_description_flag.x_short_vector,
+                                                       not Flag#ttf_table_simple_glyph_description_flag.this_x_is_same ->
+    io:format("get_x_coordinates_acc:\ttrue, false~n"),
+    <<Vector:8/unsigned-integer, Font2/binary>> = Font,
+    NegativeVector = -Vector,
+    get_x_coordinates_acc(Font2, Flags, [NegativeVector | List]);
+get_x_coordinates_acc(Font, [Flag | Flags], List) when not Flag#ttf_table_simple_glyph_description_flag.x_short_vector,
+                                                       Flag#ttf_table_simple_glyph_description_flag.this_x_is_same ->
+    io:format("get_x_coordinates_acc:\tfalse, true~n"),
+    Vector = lists:nth(1, List),
+    get_x_coordinates_acc(Font, Flags, [Vector | List]);
+get_x_coordinates_acc(Font, [Flag | Flags], List) when not Flag#ttf_table_simple_glyph_description_flag.x_short_vector,
+                                                       not Flag#ttf_table_simple_glyph_description_flag.this_x_is_same ->
+    io:format("get_x_coordinates_acc:\tfalse, false~n"),
+    <<Vector:16/signed-integer, Font2/binary>> = Font,
+    get_x_coordinates_acc(Font2, Flags, [Vector | List]).
+
+get_y_coordinates(Font, Flags) ->
+    io:format("get_y_coordinates~n"),
+    get_y_coordinates_acc(Font, Flags, []).
+
+get_y_coordinates_acc(Font, [], List) ->
+    {lists:reverse(List), Font};
+get_y_coordinates_acc(Font, [Flag | Flags], List) when Flag#ttf_table_simple_glyph_description_flag.y_short_vector,
+                                                       Flag#ttf_table_simple_glyph_description_flag.this_y_is_same ->
+    <<Vector:8/unsigned-integer, Font2/binary>> = Font,
+    get_y_coordinates_acc(Font2, Flags, [Vector | List]);
+get_y_coordinates_acc(Font, [Flag | Flags], List) when Flag#ttf_table_simple_glyph_description_flag.y_short_vector,
+                                                       not Flag#ttf_table_simple_glyph_description_flag.this_y_is_same ->
+    <<Vector:8/unsigned-integer, Font2/binary>> = Font,
+    NegativeVector = -Vector,
+    get_y_coordinates_acc(Font2, Flags, [NegativeVector | List]);
+get_y_coordinates_acc(Font, [Flag | Flags], List) when not Flag#ttf_table_simple_glyph_description_flag.y_short_vector,
+                                                       Flag#ttf_table_simple_glyph_description_flag.this_y_is_same ->
+    Vector = lists:nth(1, List),
+    get_y_coordinates_acc(Font, Flags, [Vector | List]);
+get_y_coordinates_acc(Font, [Flag | Flags], List) when not Flag#ttf_table_simple_glyph_description_flag.y_short_vector,
+                                                       not Flag#ttf_table_simple_glyph_description_flag.y_short_vector ->
+    <<Vector:16/signed-integer, Font2/binary>> = Font,
+    get_x_coordinates_acc(Font2, Flags, [Vector | List]).
 
 parse_table_simple_glyph_description(Font, TableGlyf) ->
     io:format("fun parse_table_simple_glyph_description~n"),
@@ -171,27 +226,12 @@ parse_table_simple_glyph_description(Font, TableGlyf) ->
     io:format("\tInstructionLength:\t~p~n", [InstructionLength]),
     {Instructions, Font4} = get_bytes_from_binary(Font3, InstructionLength),
     io:format("\tInstructions:\t~p~n", [Instructions]),
-    {List, Font5} = get_bytes_from_binary(Font4, InstructionLength),
-    %%% TODO: enable ThisXIsSame, and ThisYIsSame, these does not work now.
-    {Flags, Font6} = read_flags(Font5, TableGlyf#ttf_table_glyf.number_of_contours),
-
-    Flags = lists:map(fun (X) -> <<OnCurve:1,
-                                   XShortVector:1,
-                                   YShortVector:1,
-                                   Repeat:1,
-                                   ThisXIsSame:1,
-                                   ThisYIsSame:1,
-                                   0:1,
-                                   0:1>> = X,
-                                 #ttf_table_simple_glyph_description_flag{on_curve = OnCurve,
-                                                                          x_short_vector = XShortVector,
-                                                                          y_short_vector = YShortVector,
-                                                                          repeat = Repeat,
-                                                                          this_x_is_same = ThisXIsSame,
-                                                                          this_y_is_same = ThisYIsSame}
-                      end, List),
+    {Flags, Font5} = read_flags(Font4, TableGlyf#ttf_table_glyf.number_of_contours),
     io:format("\tFlags:\t~p~n", [Flags]),
-%    {Font6, XCoodinates, YCoodinates} = parse_table_simple_glyph_description_acc(Font5, Flags, [], []),
+    {XCoordinates, Font6} = get_x_coordinates(Font5, Flags),
+    io:format("\tXCoordinates:\t~p~n", [XCoordinates]),
+    {YCoordinates, Font7} = get_y_coordinates(Font6, Flags),
+%    {Font6, XCoordinates, YCoordinates} = parse_table_simple_glyph_description_acc(Font5, Flags, [], []),
     ok.
 
 parse_table_composite_glyph_description(_Font2, _TableGlyf) ->
