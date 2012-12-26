@@ -3,7 +3,7 @@
 [% FOREACH cols IN chars.kana -%]
             %tr
 [%   FOREACH col IN cols -%]
-                %td [% col %]
+                %td(title="[% col %]") [% col %]
 [%   END -%]
 [% END -%]
         %h3 kanji1
@@ -11,7 +11,7 @@
 [% FOREACH cols IN chars.kanji1 -%]
             %tr
 [%   FOREACH col IN cols -%]
-                %td [% col %]
+                %td(title="[% col %]") [% col %]
 [%   END -%]
 [% END -%]
         %h3 kanji2
@@ -19,6 +19,6 @@
 [% FOREACH cols IN chars.kanji2 -%]
             %tr
 [%   FOREACH col IN cols -%]
-                %td [% col %]
+                %td(title="[% col %]") [% col %]
 [%   END -%]
 [% END -%]
