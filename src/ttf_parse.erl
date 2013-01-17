@@ -1,10 +1,10 @@
 -module(ttf_parse).
 -compile(export_all).
--include("ttf_offset_table.hrl").
--include("ttf_table.hrl").
--include("ttf_table_glyf.hrl").
--include("ttf_table_simple_glyph_description.hrl").
--include("ttf_table_simple_glyph_description_flag.hrl").
+-include("include/ttf_offset_table.hrl").
+-include("include/ttf_table.hrl").
+-include("include/ttf_table_glyf.hrl").
+-include("include/ttf_table_simple_glyph_description.hrl").
+-include("include/ttf_table_simple_glyph_description_flag.hrl").
 
 -define(FILENAME, "font.d/subset.ttf").
 
@@ -19,14 +19,14 @@
 
 % Fixed: 32-bit, signed fixed-point number (16.16)
 
-read() ->
+read() -> % An alias for test.
     read(?FILENAME).
 
 read(Filename) ->
     {ok, Bin} = file:read_file(Filename),
     Bin.
 
-parse() ->
+parse() -> % An alias for test.
     parse_font(read()).
 
 parse(Filename) ->
@@ -264,7 +264,8 @@ parse_table_glyf_acc(Font, Glyphs) ->
     parse_table_glyf_acc(Font3, [Glyph | Glyphs]).
 
 parse_table_glyf(Font, _Table) ->
-    parse_table_glyf_acc(Font, []).
+%    parse_table_glyf_acc(Font, []).
+    ok.
 
 %%% Tables Related to PostScript Outlines
 
@@ -306,8 +307,107 @@ parse_table_fpgm(_Font, _Table) ->
 parse_table_cvt_(_Font, _Table) ->
     ok.
 
-parse_table_os_2(_Font, _Table) ->
+describe_us_weight_class(Value) ->
+    case Value of
+        100 ->
+            "Thin";
+        200 ->
+            "Extra-light (Ultra-light)";
+        300 ->
+            "Light";
+        400 ->
+            "Normal (Regular)";
+        500 ->
+            "Medium";
+        600 ->
+            "Semi-bold (Demi-bold)";
+        700 ->
+            "Bold";
+        800 ->
+            "Extra-bold (Ultra-bold)";
+        900 ->
+            "Black (Heavy)"
+    end.
+
+describe_us_width_class(Value) ->
+    case Value of
+        1 ->
+            "Ultra-condensed (50%)";
+        2 ->
+            "Extra-condensed (62.5%)";
+        3 ->
+            "Condensed (75%)";
+        4 ->
+            "Semi-condensed (87.5%)";
+        5 ->
+            "Medium (normal) (100%)";
+        6 ->
+            "Semi-expanded (112.5%)";
+        7 ->
+            "Expanded (125%)";
+        8 ->
+            "Extra-expanded (150%)";
+        9 ->
+            "Ultra-expanded (200%)"
+    end.
+
+%%% 0x0000: no restriction
+%%% 0x0001: reserved, must be zero
+%%% 0x0002: restricted
+%%% 0x0004: preview & print
+%%% 0x0008: temporary
+
+get_fs_type_flags(_Value) ->
     ok.
+
+parse_table_os_2_v1(Font, Table) ->
+    <<Version:16/unsigned-integer,
+      XArgCharWidth:16/signed-integer,
+      UsWeightClass:16/unsigned-integer,
+      UsWidthClass:16/unsigned-integer,
+      FsType:16/unsigned-integer,
+      YSubscriptXSize:16/signed-integer,
+      YSubscriptYSize:16/signed-integer,
+      YSubscriptXOffset:16/signed-integer,
+      YSubscriptYOffset:16/signed-integer,
+      YSuperscriptXSize:16/signed-integer,
+      YSuperscriptYSize:16/signed-integer,
+      YSuperscriptXOffset:16/signed-integer,
+      YSuperscriptYOffset:16/signed-integer,
+      YStrikeoutSize:16/signed-integer,
+      YStrikeoutPosition:16/signed-integer,
+      SFamilyClass:16/signed-integer,
+      Panose:10/unsigned-integer-unit:8,
+      _Bin/binary>> = Font,
+    Version = 1,
+    io:format("\t\tVersion:\t~p~n", [Version]),
+    io:format("\t\txArgCharWidth:\t~p~n", [XArgCharWidth]),
+    io:format("\t\tusWeightClass:\t~p, ~p~n", [UsWeightClass, describe_us_weight_class(UsWeightClass)]),
+    io:format("\t\tusWidthClass:\t~p, ~p~n", [UsWidthClass, describe_us_width_class(UsWidthClass)]),
+    io:format("\t\tfsType:\t~p~n", [FsType]),
+    io:format("\t\tySubscriptXSize:\t~p~n", [YSubscriptXSize]),
+    io:format("\t\tySubscriptYSize:\t~p~n", [YSubscriptYSize]),
+    io:format("\t\tySubscriptXOffset:\t~p~n", [YSubscriptXOffset]),
+    io:format("\t\tySubscriptYOffset:\t~p~n", [YSubscriptYOffset]),
+    io:format("\t\tySuperscriptXSize:\t~p~n", [YSuperscriptXSize]),
+    io:format("\t\tySuperscriptYSize:\t~p~n", [YSuperscriptYSize]),
+    io:format("\t\tySuperscriptXOffset:\t~p~n", [YSuperscriptXOffset]),
+    io:format("\t\tySuperscriptYOffset:\t~p~n", [YSuperscriptYOffset]),
+    io:format("\t\tyStrikeoutSize:\t~p~n", [YStrikeoutSize]),
+    io:format("\t\tyStrikeoutPosition:\t~p~n", [YStrikeoutPosition]),
+    io:format("\t\tsFamilyClass:\t~p~n", [SFamilyClass]),
+    io:format("\t\tPanose:\t~p~n", [Panose]),
+    ok.
+
+parse_table_os_2(Font, Table) ->
+%    io:format("\t\ttable:\t~p~n", [Table]),
+    <<Version:16/unsigned-integer,
+      _Font/binary>> = Font,
+%    io:format("\t\tversion:\t~p~n", [Version]).
+    case Version of
+        1 ->
+            parse_table_os_2_v1(Font, Table)
+    end.
 
 parse_table_gsub(_Font, _Table) ->
     ok.
