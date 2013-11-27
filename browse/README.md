@@ -20,8 +20,10 @@ This template have a following work flow.
 BROWSE
 ======
 
+``` bash
   % make
   % open index.html
+```
 
 PREREQ
 ======
