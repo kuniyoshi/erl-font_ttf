@@ -3,11 +3,6 @@ NAME
 
 erl-font_ttf
 
-DOCUMENTED VERSION
-==================
-
-This document shows the ?? of the version of the erl-font_ttf.
-
 DESCRIPTION
 ===========
 
