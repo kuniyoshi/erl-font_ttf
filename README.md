@@ -1,12 +1,12 @@
 NAME
 ====
 
-erl-ttf_parse
+erl-font_ttf
 
 DOCUMENTED VERSION
 ==================
 
-This document shows the ?? of the version of the erl-ttf_parse.
+This document shows the ?? of the version of the erl-font_ttf.
 
 DESCRIPTION
 ===========

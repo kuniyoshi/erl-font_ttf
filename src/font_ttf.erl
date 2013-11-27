@@ -1,4 +1,4 @@
--module(ttf_parse).
+-module(font_ttf).
 -compile(export_all).
 -include("include/ttf_offset_table.hrl").
 -include("include/ttf_table.hrl").
