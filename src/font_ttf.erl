@@ -1,12 +1,10 @@
 -module(font_ttf).
--compile(export_all).
+-export([parse/1, read/1]).
 -include("include/ttf_offset_table.hrl").
 -include("include/ttf_table.hrl").
 -include("include/ttf_table_glyf.hrl").
 -include("include/ttf_table_simple_glyph_description.hrl").
 -include("include/ttf_table_simple_glyph_description_flag.hrl").
-
--define(FILENAME, "font.d/subset.ttf").
 
 % Reference: http://www.microsoft.com/typography/otspec/otff.htm
 % all have big endien
@@ -19,15 +17,9 @@
 
 % Fixed: 32-bit, signed fixed-point number (16.16)
 
-read() -> % An alias for test.
-    read(?FILENAME).
-
 read(Filename) ->
     {ok, Bin} = file:read_file(Filename),
     Bin.
-
-parse() -> % An alias for test.
-    parse_font(read()).
 
 parse(Filename) ->
     parse_font(read(Filename)).
@@ -40,21 +32,23 @@ get_offset_table(Bin) ->
       EntrySelector:16/unsigned-integer,
       RangeShift:16/unsigned-integer,
       Bin2/binary>> = Bin,
+
     SfntVersion = SfntVersionP1 + SfntVersionP2 / 10,
-    case NumTables * 16 - SearchRange of
-        RangeShift -> ok
-    end,
+    RangeShift = NumTables * 16 - SearchRange,
+
     io:format("get_offset_table~n"),
     io:format("\tsfnt_version:\t~p~n", [SfntVersion]),
     io:format("\tnum_tables:\t~p~n", [NumTables]),
     io:format("\tsearch_range:\t~p~n", [SearchRange]),
     io:format("\tentry_selector:\t~p~n", [EntrySelector]),
     io:format("\trange_shift:\t~p~n", [RangeShift]),
-    {#ttf_offset_table{sfnt_version = SfntVersion,
-                       num_tables = NumTables,
-                       search_range = SearchRange,
-                       entry_selector = EntrySelector,
-                       range_shift = RangeShift}, Bin2}.
+
+    OffsetTable = #ttf_offset_table{sfnt_version = SfntVersion,
+                                    num_tables = NumTables,
+                                    search_range = SearchRange,
+                                    entry_selector = EntrySelector,
+                                    range_shift = RangeShift},
+    {OffsetTable, Bin2}.
 
 get_tables(Font, OffsetTable) ->
     get_tables_acc(Font, OffsetTable#ttf_offset_table.num_tables, []).
@@ -451,4 +445,4 @@ parse_font(Font) ->
     {OffsetTable, Font2} = get_offset_table(Font),
     Tables = get_tables(Font2, OffsetTable),
     io:format("tables: ~p~n", [Tables]),
-    parse_tables(Font, Tables).
+    ok = parse_tables(Font, Tables).
