@@ -6,7 +6,7 @@ use warnings;
 our @CHARS;
 our %CHAR;
 
-my $CHARS_REF = require "jis_x_0208.pl";
+my $CHARS_REF = do "jis_x_0208.pl";
 
 my %code = (
     kana   => [ 1  .. 8  ],
@@ -14,16 +14,16 @@ my %code = (
     kanji2 => [ 48 .. 84 ],
 );
 
-foreach my $key ( keys %code ) {
-    foreach my $num ( @{ $code{ $key } } ) {
+for my $key ( keys %code ) {
+    for my $num ( @{ $code{ $key } } ) {
         $code{ $num } = $key;
     }
 }
 
-foreach my $ku ( sort { $a <=> $b } keys %{ $CHARS_REF } ) {
+for my $ku ( sort { $a <=> $b } keys %{ $CHARS_REF } ) {
     my @chars;
 
-    foreach my $ten ( sort { $a <=> $b } keys %{ $CHARS_REF->{ $ku } } ) {
+    for my $ten ( sort { $a <=> $b } keys %{ $CHARS_REF->{ $ku } } ) {
         push @chars, $CHARS_REF->{ $ku }{ $ten };
     }
 

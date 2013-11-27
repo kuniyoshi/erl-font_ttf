@@ -20,8 +20,8 @@ This template have a following work flow.
 BROWSE
 ======
 
-    make
-    open index.html
+  % make
+  % open index.html
 
 PREREQ
 ======
@@ -32,4 +32,3 @@ PREREQ
 - ruby
 - haml (by gem)
 - sass (by gem)
-
